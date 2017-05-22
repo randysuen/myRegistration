@@ -23,6 +23,39 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr &pDstCloud
 #endif
 }
 
+
+
+
+
+
+void PointCloudOperations::ror_cloud
+(
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr & pSrcCloud,
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr & pDstCloud,
+	const int & pNeighbors,
+	const float & pRadius
+	)
+{
+
+#ifdef DEBUG
+	std::cout << "Applying ROR filter to cloud(" << pSrcCloud->points.size() << ")...\n";
+#endif
+
+	pcl::RadiusOutlierRemoval<pcl::PointXYZRGB> ror;
+	ror.setInputCloud(pSrcCloud);
+	ror.setRadiusSearch(pRadius);
+	ror.setMinNeighborsInRadius(pNeighbors);
+	ror.filter(*pDstCloud);
+
+#ifdef DEBUG
+	std::cout << "Cloud filtered (" << pDstCloud->points.size() << " points)...\n";
+#endif
+
+}
+
+
+
+
 /// ---------------------------------------------------------------------------------------------
 
 void PointCloudOperations::compute_normals
@@ -267,31 +300,61 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr & pSrcCloud,
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr & pTgtCloud,
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr & pDstCloud,
 const int & pMaxIterations,
-const double & pEpsilon
+const double & pEpsilon,
+Eigen::Matrix4f & icpTransMatrix
 )
 {
 	pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr srcCloudNormals(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
 	pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr tgtCloudNormals(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
 	pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr dstCloudNormals(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
 
-	pcl::NormalEstimation<pcl::PointXYZRGB, pcl::PointXYZRGBNormal> ne;
+
+	pcl::PointCloud<pcl::Normal>::Ptr srcNormals(new pcl::PointCloud<pcl::Normal>);
+	pcl::PointCloud<pcl::Normal>::Ptr tgtNormals(new pcl::PointCloud<pcl::Normal>);
+	pcl::PointCloud<pcl::Normal>::Ptr dstNormals(new pcl::PointCloud<pcl::Normal>);
+
+
+
+//	pcl::NormalEstimation<pcl::PointXYZRGB, pcl::PointXYZRGBNormal> ne;
+	pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> ne;
 	pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>());
 	ne.setSearchMethod(tree);
-	ne.setKSearch(30);
+	ne.setKSearch(10);
 
 	ne.setInputCloud(pSrcCloud);
-	ne.compute(*srcCloudNormals);
+//	ne.compute(*srcCloudNormals);
+	ne.compute(*srcNormals);
+
 
 	ne.setInputCloud(pTgtCloud);
-	ne.compute(*tgtCloudNormals);
+//	ne.compute(*tgtCloudNormals);
+	ne.compute(*tgtNormals);
+	std::cout << "tgt normals : " << tgtNormals->size() << std::endl;
+
+
+	pcl::concatenateFields(*pSrcCloud, *srcNormals, *srcCloudNormals);
+	pcl::concatenateFields(*pTgtCloud, *tgtNormals, *tgtCloudNormals);
+	pcl::io::savePLYFileASCII("src normals", *srcCloudNormals);
+	pcl::io::savePLYFileASCII("tgt normals", *tgtCloudNormals);
+//	pcl::io::savePLYFileASCII("src normals", *srcNormals);
+//	pcl::io::savePLYFileASCII("tgt normals", *tgtNormals);
+
+
+	//std::cout << "xyz:" << tgtCloudNormals->begin()->x << tgtCloudNormals->begin()->y << tgtCloudNormals->begin()->z << std::endl;
+	//std::cout << "xyz:" << tgtCloudNormals->begin()->getVector3fMap() << std::endl;
+
+	
+	//srcCloudNormals->begin()->
 
 	pcl::IterativeClosestPointWithNormals<pcl::PointXYZRGBNormal, pcl::PointXYZRGBNormal> icp;
 	icp.setInputSource(srcCloudNormals);
 	icp.setInputTarget(tgtCloudNormals);
 	icp.setMaximumIterations(pMaxIterations);
+	icp.setMaxCorrespondenceDistance(0.01);
+	icp.setEuclideanFitnessEpsilon(0.01);
 	icp.setTransformationEpsilon(pEpsilon);
 	icp.align(*dstCloudNormals);
-
+	icpTransMatrix = icp.getFinalTransformation();
 	pcl::copyPointCloud(*dstCloudNormals, *pDstCloud);
 
 #ifdef DEBUG
@@ -301,6 +364,7 @@ const double & pEpsilon
 		std::cout << "The score is " << icp.getFitnessScore() << "\n";
 		std::cout << "Transformation matrix:\n";
 		std::cout << icp.getFinalTransformation() << "\n";
+
 	}
 	else
 		std::cout << "ICP did not converge\n";

@@ -146,7 +146,8 @@ public:
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr & pTgtCloud,
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr & pDstCloud,
 		const int & pMaxIterations,
-		const double & pEpsilon
+		const double & pEpsilon,
+			Eigen::Matrix4f & icpTransMatrix
 		);
 
 	static void cut_cloud
