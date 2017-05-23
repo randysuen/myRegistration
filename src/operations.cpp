@@ -529,7 +529,8 @@ void PointCloudOperations::get_initTransMatrix(
 	pcl::registration::TransformationEstimationSVD<myPointT, myPointT> transEstimator;
 	transEstimator.estimateRigidTransformation(*srcKeypoints, *tarKeypoints, *correspondences, transMatrix);
 #ifdef DEBUG
-	std::cout << "initial transform matrix: " << transMatrix << std::endl;
+	std::cout << "initial transform matrix: " << std::endl;
+	std::cout << transMatrix << std::endl;
 #endif // DEBUG
 
 }
