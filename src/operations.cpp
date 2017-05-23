@@ -467,6 +467,8 @@ void PointCloudOperations::compute_susan(
 	susanDetector.setNonMaxSupression(1);
 //	susanDetector.setGeometricValidation(1);
 //	susanDetector.setDistanceThreshold(1);
+//	susanDetector.setAngularThreshold(0.1);
+//	susanDetector.setDistanceThreshold(0.1);
 	susanDetector.setInputCloud(pSrcCloud);
 //	susanDetector.setNormals(pNormals);
 	susanDetector.setSearchMethod(kdtree);
@@ -523,7 +525,7 @@ void PointCloudOperations::get_initTransMatrix(
 	const pcl::CorrespondencesPtr & correspondences,
 	Eigen::Matrix4f & transMatrix)
 {
-
+	
 	pcl::registration::TransformationEstimationSVD<myPointT, myPointT> transEstimator;
 	transEstimator.estimateRigidTransformation(*srcKeypoints, *tarKeypoints, *correspondences, transMatrix);
 #ifdef DEBUG
