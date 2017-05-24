@@ -84,7 +84,32 @@ pcl::PointCloud<myNormalT>::Ptr & pNormals
 }
 
 /// -----------------------------------------------------------------------------------------------
+/// -----------------------------------------------------------------------------------------------
 
+void PointCloudOperations::sor_cloud
+(
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr & pSrcCloud,
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr & pDstCloud,
+	const int & pMeanK,
+	const float & pStdDev
+	)
+{
+
+#ifdef DEBUG
+	std::cout << "Applying SOR filter to cloud(" << pSrcCloud->points.size() << ")...\n";
+#endif
+
+	pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
+	sor.setInputCloud(pSrcCloud);
+	sor.setMeanK(pMeanK);
+	sor.setStddevMulThresh(pStdDev);
+	sor.filter(*pDstCloud);
+
+#ifdef DEBUG
+	std::cout << "Cloud filtered (" << pDstCloud->points.size() << " points)...\n";
+#endif
+
+}
 
 /// -----------------------------------------------------------------------------------------------
 
@@ -277,6 +302,8 @@ Eigen::Matrix4f & icpTransMatrix
 	icp.setInputTarget(pTgtCloud);
 	icp.setMaximumIterations(pMaxIterations);
 	icp.setTransformationEpsilon(pEpsilon);
+	icp.setEuclideanFitnessEpsilon(0.01);
+	icp.setMaxCorrespondenceDistance(0.01);
 	icp.align(*pDstCloud);
 	icpTransMatrix = icp.getFinalTransformation();
 #ifdef DEBUG

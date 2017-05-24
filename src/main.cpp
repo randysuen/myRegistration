@@ -15,6 +15,10 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+
+
+#include <pcl/registration/gicp.h>
+
 //初始化Utils类的静态成员
 bool Utils::pcd_ex = false;
 bool Utils::ply_ex = false;
@@ -59,7 +63,7 @@ int main(){
 	Eigen::Matrix4f icpTransMatrix = Eigen::Matrix4f::Identity();
 	Eigen::Matrix4f finalTransMatrix = Eigen::Matrix4f::Identity();
 	Eigen::Matrix4f accTransMatrix = Eigen::Matrix4f::Identity();
-
+	//Eigen::Matrix4f tempTransMatrix = Eigen::Matrix4f::Identity();
 	pcl::visualization::PCLVisualizer viewer("display");
 	int vp1, vp2;
 	viewer.createViewPort(0, 0, 0.5, 1, vp1);
@@ -71,12 +75,20 @@ int main(){
 
 	int i = 0;
 	pcl::PointCloud<myPointT>::Ptr concatenateCloud(new pcl::PointCloud<myPointT>);
+	
 
-	//加载所有点云，依次进行处理
-	for (auto it = pFileNames.begin(); it != pFileNames.end(); it++) {		
-		
+	std::cout << pFileNames.size() / 2 << std::endl;;
+
+	
+	std::vector<std::string>::iterator mid_it;
+	mid_it = pFileNames.begin() + pFileNames.size() / 2;
+	std::cout << *mid_it << std::endl;
+	std::cout << "   " << std::endl;
+	std::reverse(mid_it, pFileNames.end());
+
+	for (auto it = pFileNames.begin(); it != mid_it; it++) {
+		std::cout << "loading " << *it << std::endl;
 		pcl::PointCloud<myPointT>::Ptr tempCloud(new pcl::PointCloud<myPointT>);
-
 		if (use_pcd) {
 			pcl::io::loadPCDFile<myPointT>(*it, *currentCloud);
 		}
@@ -84,12 +96,14 @@ int main(){
 			pcl::io::loadPLYFile<myPointT>(*it, *currentCloud);
 		}
 
-
-
+	//	viewer.addPointCloud(currentCloud, frame_ID.str(), vp1);
 		//每个点云都要去除离群点
 		PointCloudOperations::ror_cloud(currentCloud, currentCloud, 10, 0.005);
-
-
+		
+		//PointCloudOperations::sor_cloud(currentCloud, currentCloud, 200, 1);
+		
+		frame_ID.str("");
+		frame_ID << i;
 
 		//第一帧已配准，直接存起来
 		if (it == pFileNames.begin()) {
@@ -97,17 +111,19 @@ int main(){
 			pcl::copyPointCloud(*currentCloud, *currentAlignedCloud);
 			pcl::copyPointCloud(*currentAlignedCloud, *tempCloud);
 
+	//		pcl::io::savePLYFileASCII(pDirPath + "\\aligned_" + frame_ID.str() + ".ply", *tempCloud);
+			i++;
 			cloudsBuffer.push_back(tempCloud);
 			//点云融合
 			*concatenateCloud += *currentAlignedCloud;
 			//当前帧作为前一帧			
 			pcl::copyPointCloud(*currentCloud, *previousCloud);
-//			std::cout << "size of the cloud: " << (*(cloudsBuffer.end() - 1))->size() << std::endl;// << "th cloud" << std::endl;
+			//			std::cout << "size of the cloud: " << (*(cloudsBuffer.end() - 1))->size() << std::endl;// << "th cloud" << std::endl;
 			continue;
 		}
 
 		//加载前一帧
-//		pcl::copyPointCloud(**(cloudsBuffer.end()-1), *previousCloud);
+		//		pcl::copyPointCloud(**(cloudsBuffer.end()-1), *previousCloud);
 
 		std::cout << "checkpoint" << std::endl;
 
@@ -147,83 +163,61 @@ int main(){
 
 		//点云融合
 		*concatenateCloud += *currentAlignedCloud;
-		
+
+
+
+
 		//将配准的当前帧存起来
 		pcl::copyPointCloud(*currentAlignedCloud, *tempCloud);
 		cloudsBuffer.push_back(tempCloud);
 
+	//	pcl::io::savePLYFileASCII(pDirPath + "\\aligned_" + frame_ID.str() + ".ply", *tempCloud);
+
 		//更新累计变换矩阵
 		finalTransMatrix = icpTransMatrix*initTransMatrix;
 		accTransMatrix = accTransMatrix*finalTransMatrix;
-
+		i++;
 		//更新前一帧
 		pcl::copyPointCloud(*currentCloud, *previousCloud);
 	}
-
-	std::cout << "size of cloudsbuffer: " << cloudsBuffer.size() << std::endl;
-	//第一帧移到最后的位置
-	cloudsBuffer.push_back(*cloudsBuffer.begin());
-
-//	cloudsBuffer.insert(cloudsBuffer.begin(), currentAlignedCloud);
-
-	std::cout << "size of cloudsbuffer: " << cloudsBuffer.size() << std::endl;
-
-	cloudsBuffer.erase(cloudsBuffer.begin());
-//	cloudsBuffer.pop_back();
-	std::reverse(cloudsBuffer.begin(), cloudsBuffer.end());
-	std::cout << "size of cloudsbuffer: " << cloudsBuffer.size() << std::endl;
-	int p = 0;
-
-
-	initTransMatrix = Eigen::Matrix4f::Identity();
-	icpTransMatrix = Eigen::Matrix4f::Identity();
-	finalTransMatrix = Eigen::Matrix4f::Identity();
+//	viewer.addPointCloud(concatenateCloud, "1 fused cloud", vp1);
+//	viewer.addCoordinateSystem(0.1, vp1);
 	accTransMatrix = Eigen::Matrix4f::Identity();
-
-	viewer.addPointCloud(concatenateCloud, "1 fused cloud", vp1);
-
-	currentCloud->clear();
-	previousCloud->clear();
 	concatenateCloud->clear();
 
+	for (auto it = mid_it; it != pFileNames.end(); it++) {
+		std::cout << "loading " << *it << std::endl;
+		pcl::PointCloud<myPointT>::Ptr tempCloud(new pcl::PointCloud<myPointT>);
+		if (use_pcd) {
+			pcl::io::loadPCDFile<myPointT>(*it, *currentCloud);
+		}
+		if (use_ply) {
+			pcl::io::loadPLYFile<myPointT>(*it, *currentCloud);
+		}
 
-	pcl::PointCloud<myPointT>::Ptr concatenateCloud2(new pcl::PointCloud<myPointT>);
+		//viewer.addPointCloud(currentCloud, frame_ID.str(), vp1);
+		//每个点云都要去除离群点
+		PointCloudOperations::ror_cloud(currentCloud, currentCloud, 10, 0.005);
 
-//	viewer.addPointCloud(previousCloud, "previous cloud", vp1);
+		//PointCloudOperations::sor_cloud(currentCloud, currentCloud, 200, 1);
 
-//	viewer.addPointCloud(currentCloud, "current cloud", vp1);
-	//再次遍历点云进行配准
-	for (auto it = cloudsBuffer.begin(); it != cloudsBuffer.end(); it++) {
-
-
-		std::cout << "cloud size: " << (*it)->size() << std::endl;
-
-		frame_ID << p;
-		p++;
-
-
-
-
-		//加载当前帧
-		pcl::copyPointCloud(**it, *currentCloud);
-
+		frame_ID.str("");
+		frame_ID << i;
 
 		//第一帧已配准，直接存起来
-		if (it == cloudsBuffer.begin()) {
+		if (it == mid_it) {
 
 			pcl::copyPointCloud(*currentCloud, *currentAlignedCloud);
-			//			pcl::copyPointCloud(*currentAlignedCloud, *tempCloud);
+			pcl::copyPointCloud(*currentAlignedCloud, *tempCloud);
 
-			//			cloudsBuffer.push_back(tempCloud);
+			//		pcl::io::savePLYFileASCII(pDirPath + "\\aligned_" + frame_ID.str() + ".ply", *tempCloud);
+			i++;
+			cloudsBuffer.push_back(tempCloud);
 			//点云融合
-			*concatenateCloud2 += *currentAlignedCloud;
+			*concatenateCloud += *currentAlignedCloud;
 			//当前帧作为前一帧			
 			pcl::copyPointCloud(*currentCloud, *previousCloud);
 			//			std::cout << "size of the cloud: " << (*(cloudsBuffer.end() - 1))->size() << std::endl;// << "th cloud" << std::endl;
-
-
-//			viewer.addPointCloud(currentCloud, frame_ID.str(), vp1);
-
 			continue;
 		}
 
@@ -233,58 +227,203 @@ int main(){
 		std::cout << "checkpoint" << std::endl;
 
 		//计算前一帧的法线
-//		PointCloudOperations::compute_normals(previousCloud, 10, previousNormals);
+		PointCloudOperations::compute_normals(previousCloud, 10, previousNormals);
 
 		//计算前一帧susan关键点
-//		PointCloudOperations::compute_susan(previousCloud, 0.005, previousKeypoints);
+		PointCloudOperations::compute_susan(previousCloud, 0.005, previousKeypoints);
 
 		//计算前一帧CSHOT
-//		PointCloudOperations::compute_cshot(previousCloud, previousNormals, previousKeypoints, 0.05, previousDescriptors);
-///		PointCloudOperations::compute_cshot(previousCloud, previousNormals, previousCloud, 0.05, previousDescriptors);
+		PointCloudOperations::compute_cshot(previousCloud, previousNormals, previousKeypoints, 0.05, previousDescriptors);
+		//PointCloudOperations::compute_cshot(previousCloud, previousNormals, previousCloud, 0.05, previousDescriptors);
 		//计算当前帧的法线
-//		PointCloudOperations::compute_normals(currentCloud, 10, normals);
+		PointCloudOperations::compute_normals(currentCloud, 10, normals);
 
 		//计算当前帧susan关键点
-//		PointCloudOperations::compute_susan(currentCloud, 0.005, currentKeypoints);
+		PointCloudOperations::compute_susan(currentCloud, 0.005, currentKeypoints);
 
 		//计算前帧CSHOT
-//		PointCloudOperations::compute_cshot(currentCloud, normals, currentKeypoints, 0.05, currentDescriptors);
-	//	PointCloudOperations::compute_cshot(currentCloud, normals, currentCloud, 0.05, currentDescriptors);
+		PointCloudOperations::compute_cshot(currentCloud, normals, currentKeypoints, 0.05, currentDescriptors);
+		//PointCloudOperations::compute_cshot(currentCloud, normals, currentCloud, 0.05, currentDescriptors);
 		//后作为source,前作为target
 		//对前后帧描述子进行匹配
-		//PointCloudOperations::find_correspondences(currentDescriptors, previousDescriptors, currentKeypoints, previousKeypoints, 0.005, finalCorrespondences);
-	//	PointCloudOperations::find_correspondences(currentDescriptors, previousDescriptors, currentCloud, previousCloud, 0.005, finalCorrespondences);
-		//PointCloudOperations::find_correspondences(previousDescriptors, currentDescriptors,  previousKeypoints, currentKeypoints, 0.005, finalCorrespondences);
+		PointCloudOperations::find_correspondences(currentDescriptors, previousDescriptors, currentKeypoints, previousKeypoints, 0.005, finalCorrespondences);
+
 		//计算前后帧的初始转移矩阵
-	//	PointCloudOperations::get_initTransMatrix(currentCloud, previousCloud, finalCorrespondences, initTransMatrix);
+		PointCloudOperations::get_initTransMatrix(currentKeypoints, previousKeypoints, finalCorrespondences, initTransMatrix);
 
 		//前后帧进行粗配准
-	//	pcl::transformPointCloud(*currentCloud, *currentAlignedCloud, initTransMatrix);
-		pcl::copyPointCloud(*currentCloud, *currentAlignedCloud);
+		pcl::transformPointCloud(*currentCloud, *currentAlignedCloud, initTransMatrix);
+		//pcl::copyPointCloud(*currentCloud, *currentAlignedCloud);
 		//前后帧进行ICP细配准			
 		PointCloudOperations::icp_normals_align_cloud(currentAlignedCloud, previousCloud, currentAlignedCloud, 100, 1e-10, icpTransMatrix);
-
+		//PointCloudOperations::icp_normals_align_cloud(currentAlignedCloud, previousCloud, currentAlignedCloud, 100, 1e-10, icpTransMatrix);
 		//配准的当前帧变换到第一帧空间里
 		pcl::transformPointCloud(*currentAlignedCloud, *currentAlignedCloud, accTransMatrix);
-//		viewer.addPointCloud(currentCloud, frame_ID.str(), vp1);
+
 		//点云融合
-		*concatenateCloud2 += *currentAlignedCloud;
+		*concatenateCloud += *currentAlignedCloud;
+
+
+
 
 		//将配准的当前帧存起来
-		//		pcl::copyPointCloud(*currentAlignedCloud, *tempCloud);
-		//		cloudsBuffer.push_back(tempCloud);
+		pcl::copyPointCloud(*currentAlignedCloud, *tempCloud);
+		cloudsBuffer.push_back(tempCloud);
+
+		//	pcl::io::savePLYFileASCII(pDirPath + "\\aligned_" + frame_ID.str() + ".ply", *tempCloud);
 
 		//更新累计变换矩阵
 		finalTransMatrix = icpTransMatrix*initTransMatrix;
 		accTransMatrix = accTransMatrix*finalTransMatrix;
-
+		i++;
 		//更新前一帧
 		pcl::copyPointCloud(*currentCloud, *previousCloud);
+	}
 
+	//viewer.addPointCloud(concatenateCloud, "q fused cloud",vp2);
+//	viewer.addCoordinateSystem(0.1, vp2);
+	
+	std::cout << "checkpoint" << std::endl;
+
+	pcl::copyPointCloud(**cloudsBuffer.begin(), *previousCloud);
+	pcl::copyPointCloud(**(cloudsBuffer.begin()+cloudsBuffer.size()/2), *currentCloud);
+
+	//计算前一帧的法线
+	PointCloudOperations::compute_normals(previousCloud, 10, previousNormals);
+
+	//计算前一帧susan关键点
+	PointCloudOperations::compute_susan(previousCloud, 0.005, previousKeypoints);
+
+	//计算前一帧CSHOT
+	PointCloudOperations::compute_cshot(previousCloud, previousNormals, previousKeypoints, 0.05, previousDescriptors);
+	//PointCloudOperations::compute_cshot(previousCloud, previousNormals, previousCloud, 0.05, previousDescriptors);
+	//计算当前帧的法线
+	PointCloudOperations::compute_normals(currentCloud, 10, normals);
+
+	//计算当前帧susan关键点
+	PointCloudOperations::compute_susan(currentCloud, 0.005, currentKeypoints);
+
+	//计算前帧CSHOT
+	PointCloudOperations::compute_cshot(currentCloud, normals, currentKeypoints, 0.05, currentDescriptors);
+	//PointCloudOperations::compute_cshot(currentCloud, normals, currentCloud, 0.05, currentDescriptors);
+	//后作为source,前作为target
+	//对前后帧描述子进行匹配
+	PointCloudOperations::find_correspondences(currentDescriptors, previousDescriptors, currentKeypoints, previousKeypoints, 0.005, finalCorrespondences);
+
+	//计算前后帧的初始转移矩阵
+	PointCloudOperations::get_initTransMatrix(currentKeypoints, previousKeypoints, finalCorrespondences, initTransMatrix);
+
+	//前后帧进行粗配准
+	pcl::transformPointCloud(*currentCloud, *currentAlignedCloud, initTransMatrix);
+	//pcl::copyPointCloud(*currentCloud, *currentAlignedCloud);
+	//前后帧进行ICP细配准			
+	PointCloudOperations::icp_normals_align_cloud(currentAlignedCloud, previousCloud, currentAlignedCloud, 100, 1e-10, icpTransMatrix);
+	//PointCloudOperations::icp_normals_align_cloud(currentAlignedCloud, previousCloud, currentAlignedCloud, 100, 1e-10, icpTransMatrix);
+	finalTransMatrix = icpTransMatrix*initTransMatrix;
+
+
+	pcl::PointCloud<myPointT>::Ptr finalModel(new pcl::PointCloud<myPointT>);
+
+	for (auto it = cloudsBuffer.begin(); it != cloudsBuffer.end(); it++) {
+		if (it >= cloudsBuffer.begin() + cloudsBuffer.size() / 2) {
+			pcl::transformPointCloud(**it, **it, finalTransMatrix);
+		}
+		*finalModel += **it;
+	}
+	viewer.addPointCloud(finalModel, "model", vp1);
+	viewer.addCoordinateSystem(0.1);
+	
+
+
+
+	pcl::copyPointCloud(**(cloudsBuffer.end()-1), *currentCloud);
+	pcl::copyPointCloud(**(cloudsBuffer.begin() + cloudsBuffer.size() / 2 - 1), *previousCloud);
+
+	//	viewer.addPointCloud(currentCloud, "model1", vp1);
+	//	viewer.addPointCloud(previousCloud, "model2", vp1);
+	//	viewer.addCoordinateSystem(0.1);
+
+	//计算前一帧的法线
+	PointCloudOperations::compute_normals(previousCloud, 10, previousNormals);
+
+	//计算前一帧susan关键点
+	PointCloudOperations::compute_susan(previousCloud, 0.005, previousKeypoints);
+
+	//计算前一帧CSHOT
+	PointCloudOperations::compute_cshot(previousCloud, previousNormals, previousKeypoints, 0.05, previousDescriptors);
+	//PointCloudOperations::compute_cshot(previousCloud, previousNormals, previousCloud, 0.05, previousDescriptors);
+	//计算当前帧的法线
+	PointCloudOperations::compute_normals(currentCloud, 10, normals);
+
+	//计算当前帧susan关键点
+	PointCloudOperations::compute_susan(currentCloud, 0.005, currentKeypoints);
+
+	//计算前帧CSHOT
+	PointCloudOperations::compute_cshot(currentCloud, normals, currentKeypoints, 0.05, currentDescriptors);
+	//PointCloudOperations::compute_cshot(currentCloud, normals, currentCloud, 0.05, currentDescriptors);
+	//后作为source,前作为target
+	//对前后帧描述子进行匹配
+	PointCloudOperations::find_correspondences(currentDescriptors, previousDescriptors, currentKeypoints, previousKeypoints, 0.005, finalCorrespondences);
+
+	//计算前后帧的初始转移矩阵
+	PointCloudOperations::get_initTransMatrix(currentKeypoints, previousKeypoints, finalCorrespondences, initTransMatrix);
+
+	//前后帧进行粗配准
+	pcl::transformPointCloud(*currentCloud, *currentAlignedCloud, initTransMatrix);
+	//pcl::copyPointCloud(*currentCloud, *currentAlignedCloud);
+	//前后帧进行ICP细配准			
+	PointCloudOperations::icp_normals_align_cloud(currentAlignedCloud, previousCloud, currentAlignedCloud, 100, 1e-10, icpTransMatrix);
+	//PointCloudOperations::icp_normals_align_cloud(currentAlignedCloud, previousCloud, currentAlignedCloud, 100, 1e-10, icpTransMatrix);
+	finalTransMatrix = icpTransMatrix*initTransMatrix;
+
+	pcl::copyPointCloud(*currentCloud, **(cloudsBuffer.end() - 1));
+
+	pcl::PointCloud<myPointT>::Ptr corrModel(new pcl::PointCloud<myPointT>);
+
+	for (auto it = cloudsBuffer.begin(); it != cloudsBuffer.end(); it++) {
+		if (it >= cloudsBuffer.begin() + cloudsBuffer.size() / 2) {
+			pcl::transformPointCloud(**it, **it, finalTransMatrix);
+		}
+		*corrModel += **it;
+	}
+	viewer.addPointCloud(corrModel, "cmodel", vp2);
+	viewer.addCoordinateSystem(0.1);
+
+
+	while (!viewer.wasStopped()) {
+		viewer.spinOnce();
 	}
 
 
-	viewer.addPointCloud(concatenateCloud2, "2 fused cloud", vp2);
+/*	std::cout << "size of cloudsbuffer: " << cloudsBuffer.size() << std::endl;
+	//第一帧移到最后的位置
+//	cloudsBuffer.push_back(*cloudsBuffer.begin());
+
+	cloudsBuffer.insert(cloudsBuffer.begin(), currentAlignedCloud);
+
+	std::cout << "size of cloudsbuffer: " << cloudsBuffer.size() << std::endl;
+
+//	cloudsBuffer.erase(cloudsBuffer.begin());
+	cloudsBuffer.pop_back();
+	std::reverse(cloudsBuffer.begin(), cloudsBuffer.end());
+	std::cout << "size of cloudsbuffer: " << cloudsBuffer.size() << std::endl;
+	int p = 0;
+//	viewer.addPointCloud(currentCloud, "current cloud", vp2);
+//	viewer.addPointCloud(previousCloud, "previous cloud", vp2);
+	accTransMatrix = Eigen::Matrix4f::Identity();
+
+//	viewer.addPointCloud(concatenateCloud, "1 fused cloud", vp1);
+
+
+
+	pcl::PointCloud<myPointT>::Ptr concatenateCloud2(new pcl::PointCloud<myPointT>);
+
+//	viewer.addPointCloud(previousCloud, "previous cloud", vp1);
+
+//	viewer.addPointCloud(currentCloud, "current cloud", vp1);
+
+
+//	viewer.addPointCloud(concatenateCloud2, "2 fused cloud", vp2);
 
 
 //	viewer.addPointCloud(previousCloud, "previous cloud", vp2);
@@ -296,7 +435,7 @@ int main(){
 	
 //	pcl::visualization::PCLVisualizer viewer("display");
 	//为了在同一个窗口显示前后帧，并且画出匹配线，需要将前帧平移一下
-/*	pcl::transformPointCloud(*previousCloud, *previousCloudTrans, Eigen::Vector3f(-1, 0, 0), Eigen::Quaternionf(1, 0, 0, 0));
+	pcl::transformPointCloud(*previousCloud, *previousCloudTrans, Eigen::Vector3f(-1, 0, 0), Eigen::Quaternionf(1, 0, 0, 0));
 	pcl::transformPointCloud(*previousKeypoints, *previousKeypointsTrans, Eigen::Vector3f(-1, 0, 0), Eigen::Quaternionf(1, 0, 0, 0));
 
 	std::cout << "previous keypoints: " << previousKeypointsTrans->size() << std::endl;
@@ -318,13 +457,13 @@ int main(){
 	for (size_t i = 0; i < finalCorrespondences->size(); i++) {
 		std::stringstream line_ID;
 		line_ID << "correspondence_line_" << i;	
-		viewer.addLine<myPointT, myPointT>(currentKeypoints->at(finalCorrespondences->at(i).index_match), previousKeypointsTrans->at(finalCorrespondences->at(i).index_query), 0, 255, 0, line_ID.str());
-	}*/
+		viewer.addLine<myPointT, myPointT>(currentKeypoints->at(finalCorrespondences->at(i).index_query), previousKeypointsTrans->at(finalCorrespondences->at(i).index_match), 0, 255, 0, line_ID.str());
+	}
 	std::cout << "checkpoint" << std::endl;
 	
 	while (!viewer.wasStopped()) {
 		viewer.spinOnce();
-	}
+	}*/
 
 	return 0;
 	
