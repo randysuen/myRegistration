@@ -301,18 +301,20 @@ Eigen::Matrix4f & icpTransMatrix
 	icp.setInputSource(pSrcCloud);
 	icp.setInputTarget(pTgtCloud);
 	icp.setMaximumIterations(pMaxIterations);
+
 	icp.setTransformationEpsilon(pEpsilon);
 	icp.setEuclideanFitnessEpsilon(0.01);
 	icp.setMaxCorrespondenceDistance(0.01);
 	icp.align(*pDstCloud);
 	icpTransMatrix = icp.getFinalTransformation();
 #ifdef DEBUG
+	std::cout << "Transformation matrix:\n";
+	std::cout << icpTransMatrix << "\n";
 	if (icp.hasConverged())
 	{
 		std::cout << "ICP converged.\n";
 		std::cout << "The score is " << icp.getFitnessScore() << "\n";
-		std::cout << "Transformation matrix:\n";
-		std::cout << icpTransMatrix << "\n";
+
 	}
 	else
 		std::cout << "ICP did not converge\n";
